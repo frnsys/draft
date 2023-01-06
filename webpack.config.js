@@ -50,7 +50,6 @@ const webpackConfig = {
   },
   devServer: {
     static: [path.resolve(__dirname, '.'), {
-      watch: true,
     }],
     devMiddleware: {
       writeToDisk: true
@@ -59,9 +58,6 @@ const webpackConfig = {
   cache: {
     type: 'filesystem',
   },
-  watchOptions: {
-    poll: 2000
-  }
 };
 
 module.exports = webpackConfig;

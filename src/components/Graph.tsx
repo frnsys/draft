@@ -1,64 +1,63 @@
 import _ from 'lodash';
 import React from 'react';
 import Node from './Node';
-import Connections from './Connections';
-import ContextMenu from './ContextMenu';
-import DraggableView from './DraggableView';
-import update from 'immutability-helper';
-import N, { PortAddress, newNode, nodeTypes, compute, graphHash } from '@/engine/Node';
+import { nanoid } from 'nanoid';
 import { getStatus }  from './Status';
+import { adjustPosition } from '@/util';
+import DraggableView from './DraggableView';
+import Connections, { ConnectionsRef } from './Connections';
+import ContextMenu, { useContextMenu } from './ContextMenu';
+import { newNode, nodeTypes } from '@/engine/node';
+import { compute, graphHash } from '@/engine/graph';
+import { Node as N, PortAddress } from '@/engine/types';
+import update from 'immutability-helper';
 
-const options = Object.entries(nodeTypes).map(([id, n]) => ({
+const addNodeOptions = Object.entries(nodeTypes).map(([id, n]) => ({
   id,
   label: n.label,
   desc: n.desc,
 }));
+const editNodeOptions = [{
+  id: 'delete',
+  label: 'Delete',
+  desc: 'Delete this node.',
+}];
 
-// TODO
-interface Props {
-}
-
-function Graph({}: Props) {
+function Graph() {
+  const [id, setId] = React.useState(nanoid());
   const [nodes, setNodes] = React.useState<Record<string, N>>({});
   const [layout, setLayout] = React.useState<Record<string, {x: number, y: number}>>({});
 
-  const menuRef = React.useRef<HTMLDivElement>();
-  const [menuOpen, setMenuOpen] = React.useState(false);
-  const [menuType, setMenuType] = React.useState<'graph'|N>('graph');
-  const [menuPosition, setMenuPosition] = React.useState({ x: 0, y: 0 });
-  const onContextMenu = (ev: React.MouseEvent) => {
-    ev.preventDefault();
-    setMenuPosition({ x: ev.clientX, y: ev.clientY });
-    setMenuOpen(true);
-    // TODO REALLY hacky
-    let nodeEl = (ev.target as HTMLElement).closest('.node');
+  // Context menu
+  const switchFn = (target: HTMLElement, _currentTarget: HTMLElement) => {
+    let nodeEl = target.closest('.node') as HTMLElement;
     if (nodeEl) {
-      let nId = nodeEl.id.slice(2);
-      let node = nodes[nId];
-      setMenuType(node);
-    } else {
-      setMenuType('graph');
+      let nodeId = nodeEl.dataset.id;
+      let node = nodes[nodeId];
+      return {
+        options: editNodeOptions,
+        onSelect: (optionId: string) => editNode(node, optionId)
+      }
+    } else if (target.id == 'stage') {
+      return {
+        options: addNodeOptions,
+        onSelect: addNode
+      }
     }
-    return false;
   }
-  const onMouseDown = (ev: React.MouseEvent) => {
-    if (!menuRef.current?.contains(ev.target as Node)) {
-      setMenuOpen(false);
-    }
-  }
-  const addNode = (type: string) => {
+  const {
+    open: menuOpen,
+    props: menuProps,
+    onContextMenu
+  } = useContextMenu(switchFn);
+
+  const ref = React.useRef<HTMLDivElement>(null);
+  const addNode = (type: string, position: Point) => {
     let node = newNode(type);
     setLayout((layout) => {
-      // TODO hacky
-      let pa = connectionStageRef.current.parentElement;
-      let paRect = pa.getBoundingClientRect();
-      // TODO adjust for zoom
       return update(layout, {
         [node.id]: {
-          $set: {
-            x: menuPosition.x - paRect.x,
-            y: menuPosition.y - paRect.y,
-          }
+          $set: adjustPosition(position, ref.current),
         }
       });
     });
@@ -67,15 +66,13 @@ function Graph({}: Props) {
         $merge: {[node.id]: node}
       });
     });
-    setMenuOpen(false);
   }
-  const editNode = (op: 'delete') => {
+  const editNode = (node: N, op: string) => {
     switch (op) {
       case 'delete':
-        deleteNode(menuType as N);
+        deleteNode(node);
         break;
     }
-    setMenuOpen(false);
   }
   const deleteNode = (node: N) => {
     // First delete connections.
@@ -93,64 +90,54 @@ function Graph({}: Props) {
     });
   }
 
-  const connections = React.useRef<Connections>(null);
-  const connectionStageRef = React.useRef<HTMLDivElement>(null);
-  const [connecting, setConnecting] = React.useState<PortAddress>(null);
-  React.useEffect(() => {
-    const cons = new Connections(connectionStageRef.current, (fromAddr, toAddr) => {
-      let [fromId, fromPortId] = fromAddr;
-      let [toId, toPortId] = toAddr;
-      setNodes((nodes) => {
-        let fromRemIdx = nodes[fromId].outputs[fromPortId].connections.findIndex((addr) => _.isEqual(toAddr, addr));
-        let toRemIdx = nodes[toId].inputs[toPortId].connections.findIndex((addr) => _.isEqual(fromAddr, addr));
-        console.log('fromidx', fromRemIdx);
-        console.log('toidx', toRemIdx);
-        return update(nodes, {
-          [fromId]: {
-            outputs: {
-              [fromPortId]: {
-                connections: {$splice: [[fromRemIdx, 1]]}
-              }
-            }
-          },
-          [toId]: {
-            inputs: {
-              [toPortId]: {
-                connections: {$splice: [[toRemIdx, 1]]}
-              }
+  const connections = React.useRef<ConnectionsRef>(null);
+  const onDeleteConnection = (fromAddr: PortAddress, toAddr: PortAddress) => {
+    let [fromId, fromPortId] = fromAddr;
+    let [toId, toPortId] = toAddr;
+    setNodes((nodes) => {
+      let fromRemIdx = nodes[fromId].outputs[fromPortId].connections.findIndex((addr) => _.isEqual(toAddr, addr));
+      let toRemIdx = nodes[toId].inputs[toPortId].connections.findIndex((addr) => _.isEqual(fromAddr, addr));
+      console.log('fromidx', fromRemIdx);
+      console.log('toidx', toRemIdx);
+      return update(nodes, {
+        [fromId]: {
+          outputs: {
+            [fromPortId]: {
+              connections: {$splice: [[fromRemIdx, 1]]}
             }
           }
-        });
+        },
+        [toId]: {
+          inputs: {
+            [toPortId]: {
+              connections: {$splice: [[toRemIdx, 1]]}
+            }
+          }
+        }
       });
     });
-    connections.current = cons;
-    cons.enable();
+  };
 
+  React.useEffect(() => {
     // Existing connections
-    cons.createFromNodes(Object.values(nodes));
+    Object.values(nodes).forEach((node) => {
+      connections.current.updateNode(node);
+    });
 
     const exitConnectionMode = (ev: KeyboardEvent) => {
       if (ev.key == 'Escape') {
-        setConnecting(null);
-        connections.current.endNewLine();
+        connections.current.stopConnecting();
       }
     }
     document.addEventListener('keydown', exitConnectionMode);
     return () => {
-      connections.current.disable();
       document.removeEventListener('keydown', exitConnectionMode);
     }
-  }, []);
-  const updateConnections = React.useCallback((node: N) => {
-    if (connections.current === null) return;
-    connections.current.updateNodeConnections(node);
   }, []);
 
   const [hash, setHash] = React.useState(graphHash(nodes));
   const [lastComputedHash, setLastComputedHash] = React.useState(graphHash(nodes));
-  React.useEffect(() => {
-    setHash(graphHash(nodes));
-  }, [nodes]);
+  React.useEffect(() => setHash(graphHash(nodes)), [nodes]);
   const computeGraph = () => {
     try {
       let updatedNodes = compute(_.cloneDeep(nodes));
@@ -160,12 +147,12 @@ function Graph({}: Props) {
       status.addMessage('error', err.toString());
     }
   };
-
   const expired = hash !== lastComputedHash;
 
   const status = getStatus();
   const save = () => {
     let graph = {
+      id,
       nodes,
       layout,
       lastComputedHash,
@@ -176,16 +163,19 @@ function Graph({}: Props) {
   React.useEffect(() => {
     let savedData = localStorage.getItem('graph');
     if (savedData && !_.isEmpty(savedData)) {
-      let {nodes, layout, lastComputedHash} = JSON.parse(savedData);
+      let {id, nodes, layout, lastComputedHash} = JSON.parse(savedData);
       setLastComputedHash(lastComputedHash);
       setLayout(layout);
       setNodes(nodes);
-      // TODO definitely a better way to do this
-      setTimeout(() => {
-        connections.current.createFromNodes(Object.values(nodes));
-      }, 100);
+      setId(id)
     }
   }, []);
+  React.useEffect(() => {
+    connections.current.reset();
+    Object.values(nodes).forEach((node: N) => {
+      connections.current.updateNode(node);
+    });
+  }, [id]);
 
 
   return <div>
@@ -194,25 +184,10 @@ function Graph({}: Props) {
       <button onClick={computeGraph}>Compute</button>
     </div>
     <DraggableView id="stage"
-      onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}>
-      {menuOpen && (menuType == 'graph' ? <ContextMenu
-        ref={menuRef}
-        position={menuPosition}
-        onSelect={addNode}
-        options={options}
-      /> : <ContextMenu
-        ref={menuRef}
-        position={menuPosition}
-        onSelect={editNode}
-        options={[{
-          id: 'delete',
-          label: 'Delete',
-          desc: 'Delete this node.',
-        }]}
-      />)}
-      <div id="connections" ref={connectionStageRef} />
-      <div id="nodes">
+      {menuOpen && <ContextMenu {...menuProps} />}
+      <Connections onDelete={onDeleteConnection} ref={connections} />
+      <div id="nodes" ref={ref}>
         {Object.entries(nodes).map(([id, n]) => <Node
           key={n.id} node={n}
           position={layout[n.id]}
@@ -224,25 +199,24 @@ function Graph({}: Props) {
             });
           }}
           expired={expired}
-          updateConnections={updateConnections}
+          updateConnections={connections.current.updateNode}
           startConnecting={(portId) => {
-            setConnecting([id, portId]);
-            connections.current.startNewLine([id, portId]);
+            connections.current.startConnecting([id, portId]);
           }}
           makeConnection={(toPortId) => {
-            if (connecting !== null) {
+            if (connections.current.connecting !== null) {
               let toId = n.id;
-              let [fromId, fromPortId] = connecting;
+              let [fromId, fromPortId] = connections.current.connecting;
               // Check that port types align
               let input = n.inputs[toPortId];
               if (input.type == nodes[fromId].outputs[fromPortId].type) {
                 // Delete previous connection, if any
                 if (!input.multi && input.connections.length > 0) {
                   for (const con of input.connections) {
-                    connections.current.delete(con, [toId, toPortId]);
+                    connections.current.deleteLine(con, [toId, toPortId]);
                   }
                 }
-                let exists = connections.current.update([fromId, fromPortId], [toId, toPortId]);
+                let exists = connections.current.updateLine([fromId, fromPortId], [toId, toPortId]);
                 if (!exists) {
                   setNodes((nodes) => {
                     return update(nodes, {
@@ -263,8 +237,7 @@ function Graph({}: Props) {
                     });
                   });
                 }
-                setConnecting(null);
-                connections.current.endNewLine();
+                connections.current.stopConnecting();
               }
             }
           }}

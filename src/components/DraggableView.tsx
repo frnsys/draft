@@ -32,13 +32,8 @@ function DraggableView({onDragEnd, ...props}: Props) {
     // Only respond to left-click
     if (ev.button !== 0) return;
 
-    const el = ref.current;
-    position.current = {
-      x: ev.clientX,
-      y: ev.clientY,
-      top: parseInt(el.style.top) || 0,
-      left: parseInt(el.style.left) || 0,
-    };
+    position.current.x = ev.clientX;
+    position.current.y = ev.clientY;
     setIsDragging(true);
   }
   const onMouseUp = () => {
@@ -52,13 +47,24 @@ function DraggableView({onDragEnd, ...props}: Props) {
     let pos = position.current;
     const dx = ev.clientX - pos.x;
     const dy = ev.clientY - pos.y;
-    ref.current.style.top = `${pos.top + dy}px`;
-    ref.current.style.left = `${pos.left + dx}px`;
+    pos.left += dx;
+    pos.top += dy;
+    pos.x = ev.clientX;
+    pos.y = ev.clientY;
+    ref.current.style.translate = `${pos.left}px ${pos.top}px`;
   }
 
   const onWheel = (ev: React.WheelEvent) => {
-    let z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom.current - ev.deltaY/400));
-    ref.current.style.transform = `scale(${z})`;
+    let z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom.current - ev.deltaY/800));
+    ref.current.style.scale = z.toString();
+
+    // TODO zoom to point
+    // let scalechange = z - zoom.current;
+    // let pos = position.current;
+    // pos.left -= ev.clientX * scalechange;
+    // pos.top -= ev.clientY * scalechange;
+    // ref.current.style.translate = `${pos.left}px ${pos.top}px`;
+
     zoom.current = z;
   }
 
@@ -76,8 +82,8 @@ function DraggableView({onDragEnd, ...props}: Props) {
     onWheel={onWheel}
     onMouseDown={onMouseDown}
     onMouseMove={onMouseMove}
-    style={{position: 'relative', ...style}}>
-    <div ref={ref} style={{position: 'absolute'}}>
+    style={style}>
+    <div ref={ref}>
       {props.children}
     </div>
   </div>
