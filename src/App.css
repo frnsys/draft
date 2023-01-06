@@ -1,0 +1,213 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  color: #fff;
+  font-family: sans-serif;
+  background: #202020;
+  background-image: linear-gradient( 0deg, transparent 24%, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.04) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.04) 75%, rgba(255, 255, 255, 0.04) 76%, transparent 77%, transparent ), linear-gradient( 90deg, transparent 24%, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.04) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.04) 75%, rgba(255, 255, 255, 0.04) 76%, transparent 77%, transparent );
+  background-size: 30px 30px;
+}
+
+.node {
+  background: #222;
+  color: #fff;
+  border: 1px solid #fff;
+  padding: 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  position: absolute;
+}
+.node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.node-label {
+  margin-right: 10px;
+  cursor: pointer;
+}
+.node-label:hover {
+  text-decoration: underline;
+}
+.node-type {
+  color: #585656;
+  font-style: italic;
+}
+
+.node-comment {
+  border-color: #ffe43b;
+  min-width: 120px;
+}
+.node-comment .node-header {
+  display: none;
+}
+
+#stage {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+.context-menu {
+  z-index: 10;
+  position: fixed;
+  border: 1px solid #fff;
+  background: #222;
+  border-radius: 3px;
+  font-size: 12px;
+  min-width: 180px;
+}
+.context-menu > div {
+  padding: 5px;
+  border-bottom: 1px solid #fff;
+  cursor: pointer;
+}
+.context-menu > div:hover {
+  background: #303030;
+}
+.context-menu > div:last-child {
+  border-bottom: none;
+}
+.context-menu-option-desc {
+  color: #999;
+}
+
+.port {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.port-pip {
+  width: 8px;
+  height: 8px;
+  background: #387fe9;
+  border-radius: 4px;
+  position: absolute;
+  top: 50%;
+  transform: translate(0, -50%);
+  cursor: pointer;
+  z-index: 2;
+}
+.port-pip:hover {
+  box-shadow: 0 0 5px rgba(255,255,255,0.75);
+}
+.ports {
+  margin-top: 0.25em;
+}
+.port .expired {
+  opacity: 0.3;
+}
+.node-outputs .port {
+  flex-direction: row-reverse;
+  padding-left: 1em;
+}
+.node-outputs .port-pip {
+  right: -10px;
+}
+.node-outputs .port label {
+  margin-left: 5px;
+}
+.node-inputs .port {
+  padding-right: 1em;
+}
+.node-inputs .port-pip {
+  left: -10px;
+}
+.node-inputs .port label {
+  margin-right: 5px;
+}
+
+.node-controls input[type=text] {
+  min-width: 100%;
+}
+
+#connections svg {
+  overflow: visible;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+#connections svg path:hover {
+  stroke: #DA4567;
+}
+
+#controls {
+  position: fixed;
+  right: 1em;
+  bottom: 1em;
+  z-index: 10;
+}
+#controls button {
+  margin-left: 5px;
+}
+button {
+  cursor: pointer;
+  color: #fff;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  background: #111;
+}
+button:hover {
+  border-color: #387fe9;
+}
+
+
+.status-message {
+  padding: 0.5em;
+  border: 1px solid #000;
+  background: linear-gradient(to left, #00C853, #41c56d);
+  min-width: 120px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.status-message:hover {
+  opacity: 0.7;
+}
+#status-messages {
+  z-index: 10;
+  position: fixed;
+  right: 1em;
+  top: 1em;
+  text-align: center;
+  font-size: 12px;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+.status-task {
+  color: #fff;
+  border: 1px solid #fff;
+  background: #000;
+  display: flex;
+  align-items: center;
+  padding: 0.5em;
+  margin-top: 0.5em;
+  border-radius: 3px;
+}
+.status-task-bar {
+  flex: 1;
+  min-width: 120px;
+  height: 10px;
+  background: none;
+  border: 1px solid #fff;
+  margin-left: 0.5em;
+  border-radius: 3px;
+}
+.status-task-bar-fill {
+  height: 8px;
+  background: white;
+}
+.status-task-loading {
+  width: 18px;
+  margin-left: 0.75em;
+  vertical-align: middle;
+}
+
+.status-message.error {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(230,36,36,1) 0%, rgba(195,8,8,1) 100%);
+}
