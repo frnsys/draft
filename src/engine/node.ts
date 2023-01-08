@@ -12,6 +12,7 @@ export const nodeTypes: Record<string, NodeType> = {
   comment: {
     label: 'Comment',
     desc: 'A comment node.',
+    resizable: true,
     controls: {
       comment: {
         type: 'edit-text',

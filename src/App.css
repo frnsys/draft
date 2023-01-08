@@ -12,6 +12,10 @@ html, body {
   background-size: 30px 30px;
 }
 
+.node-wrapper {
+  position: absolute;
+  min-width: min-content;
+}
 .node {
   background: #222;
   color: #fff;
@@ -19,7 +23,12 @@ html, body {
   padding: 5px;
   border-radius: 3px;
   font-size: 12px;
-  position: absolute;
+  min-width: min-content;
+  min-height: 100%;
+  height: min-content;
+}
+.node.selected {
+  border-color: #43cc70;
 }
 .node-header {
   display: flex;
@@ -45,6 +54,13 @@ html, body {
 .node-comment .node-header {
   display: none;
 }
+.node-display {
+  background: #354056;
+}
+.node-display .port--number {
+  font-size: 1.2em;
+}
+
 
 #stage {
   width: 100vw;
@@ -121,9 +137,26 @@ html, body {
 .node-inputs .port label {
   margin-right: 5px;
 }
-
 .node-controls input[type=text] {
   min-width: 100%;
+}
+.node-resize-handle {
+  position: absolute;
+  right: 0px;
+  bottom: 0px;
+  background: rgba(255,255,255,0.1);
+  width: 6px;
+  height: 6px;
+  border-radius: 2px 0 0 0;
+  cursor: nwse-resize;
+}
+.node-resize-handle:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.group {
+  border: 1px solid red;
+  border-radius: 3px;
 }
 
 #connections svg {

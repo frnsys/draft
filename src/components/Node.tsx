@@ -1,7 +1,6 @@
 import _ from 'lodash';
 import React from 'react';
 import { loadFile } from '@/util';
-import { useDraggable } from './hooks';
 import { Spec } from 'immutability-helper';
 import { EditText } from 'react-edit-text';
 import { nodeTypes } from '@/engine/node';
@@ -44,38 +43,20 @@ function Port({id, port, onChange, onClick, type, expired}: {
 function Node({
   node,
   expired,
-  position,
-  onMove,
+  className,
   onChange,
   startConnecting,
   makeConnection,
   updateConnections,
 }: {
   node: N,
-  position: Point,
   expired: boolean,
+  className: string,
   onChange: (update: Spec<N>) => void,
-  onMove: (pos: Point) => void,
   startConnecting: (portId: string) => void,
   makeConnection: (portId: string) => void,
   updateConnections: (node: N) => void,
 }) {
-  // Dragging/moving nodes
-  const ref = React.useRef<HTMLDivElement>();
-  const {style, onMouseDown} = useDraggable(ref, position, (ev) => {
-    let el = ev.target as HTMLElement;
-
-    // Ignore if port pip is clicked
-    if (el.className == 'port-pip') return false;
-
-    // Ignore if input is clicked
-    if (el.tagName == 'INPUT') return false;
-
-    return true;
-  }, () => {
-    updateConnections(node);
-  }, onMove);
-
   const prevNode = React.useRef(node);
   React.useEffect(() => {
     if (_.isEqual(node, prevNode.current)) return;
@@ -88,12 +69,10 @@ function Node({
     }
   }, [node]);
 
-  return <div ref={ref}
+  return <div
     data-id={node.id}
     id={`n-${node.id}`}
-    className={`node node-${node.type}`}
-    onMouseDown={onMouseDown}
-    style={style}>
+    className={`node node-${node.type} ${className}`}>
     <div className="node-header">
       <div className="node-label">
         <EditText defaultValue={node.label} onSave={(ev) => {

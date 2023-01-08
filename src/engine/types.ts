@@ -33,6 +33,7 @@ export interface Port extends PortType {
 export interface NodeType {
   label: string,
   desc: string,
+  resizable?: boolean,
   inputs?: Record<string, PortType>,
   outputs?: Record<string, PortType>,
   controls?: Record<string, Control>,

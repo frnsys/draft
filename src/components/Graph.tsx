@@ -3,14 +3,15 @@ import React from 'react';
 import Node from './Node';
 import { nanoid } from 'nanoid';
 import { getStatus }  from './Status';
-import { adjustPosition } from '@/util';
+import { adjustPosition, getTranslate } from '@/util';
 import DraggableView from './DraggableView';
 import Connections, { ConnectionsRef } from './Connections';
 import ContextMenu, { useContextMenu } from './ContextMenu';
 import { newNode, nodeTypes } from '@/engine/node';
 import { compute, graphHash } from '@/engine/graph';
 import { Node as N, PortAddress } from '@/engine/types';
-import update from 'immutability-helper';
+import update, { Spec } from 'immutability-helper';
+import { useDraggable, useKeyBindings, useSelection } from './hooks';
 
 const addNodeOptions = Object.entries(nodeTypes).map(([id, n]) => ({
   id,
@@ -23,10 +24,16 @@ const editNodeOptions = [{
   desc: 'Delete this node.',
 }];
 
+type Layout = Record<string, {x: number, y: number, w: number, h: number}>;
+
 function Graph() {
   const [id, setId] = React.useState(nanoid());
   const [nodes, setNodes] = React.useState<Record<string, N>>({});
-  const [layout, setLayout] = React.useState<Record<string, {x: number, y: number}>>({});
+  const [layout, setLayout] = React.useState<Layout>({});
+
+  const selection = useSelection();
+
+  const nodeRefs = React.useRef<Record<string, HTMLDivElement>>({});
 
   // Context menu
   const switchFn = (target: HTMLElement, _currentTarget: HTMLElement) => {
@@ -45,19 +52,16 @@ function Graph() {
       }
     }
   }
-  const {
-    open: menuOpen,
-    props: menuProps,
-    onContextMenu
-  } = useContextMenu(switchFn);
+  const ctxMenu = useContextMenu(switchFn);
 
   const ref = React.useRef<HTMLDivElement>(null);
   const addNode = (type: string, position: Point) => {
     let node = newNode(type);
     setLayout((layout) => {
+      let pos = adjustPosition(position, ref.current);
       return update(layout, {
         [node.id]: {
-          $set: adjustPosition(position, ref.current),
+          $set: {...layout[node.id], ...pos}
         }
       });
     });
@@ -95,10 +99,9 @@ function Graph() {
     let [fromId, fromPortId] = fromAddr;
     let [toId, toPortId] = toAddr;
     setNodes((nodes) => {
+      // TODO ugh
       let fromRemIdx = nodes[fromId].outputs[fromPortId].connections.findIndex((addr) => _.isEqual(toAddr, addr));
       let toRemIdx = nodes[toId].inputs[toPortId].connections.findIndex((addr) => _.isEqual(fromAddr, addr));
-      console.log('fromidx', fromRemIdx);
-      console.log('toidx', toRemIdx);
       return update(nodes, {
         [fromId]: {
           outputs: {
@@ -118,22 +121,11 @@ function Graph() {
     });
   };
 
-  React.useEffect(() => {
-    // Existing connections
-    Object.values(nodes).forEach((node) => {
-      connections.current.updateNode(node);
-    });
-
-    const exitConnectionMode = (ev: KeyboardEvent) => {
-      if (ev.key == 'Escape') {
-        connections.current.stopConnecting();
-      }
+  useKeyBindings({
+    'Escape': () => {
+      connections.current.stopConnecting();
     }
-    document.addEventListener('keydown', exitConnectionMode);
-    return () => {
-      document.removeEventListener('keydown', exitConnectionMode);
-    }
-  }, []);
+  });
 
   const [hash, setHash] = React.useState(graphHash(nodes));
   const [lastComputedHash, setLastComputedHash] = React.useState(graphHash(nodes));
@@ -177,6 +169,98 @@ function Graph() {
     });
   }, [id]);
 
+  const {style: dragStyle, onMouseDown: dragMouseDown} = useDraggable({
+    shouldHandle(ev) {
+      let el = ev.target as HTMLElement;
+
+      // Ignore if port pip is clicked
+      if (el.className == 'port-pip') return false;
+
+      // Ignore if input is clicked
+      if (el.tagName == 'INPUT') return false;
+
+      return true;
+    },
+    initDragState(ev) {
+      let el = ev.currentTarget as HTMLElement;
+      let nodeId = el.dataset.id;
+
+      // Ignore if resizing
+      let mode = 'move';
+      if ((ev.target as HTMLElement).className == 'node-resize-handle') {
+        mode = 'resize';
+      }
+      return {
+        nodeId,
+        node: nodes[nodeId],
+        mode,
+      }
+    },
+    onDrag(delta, {nodeId, mode}) {
+      if (mode == 'move') {
+        moveNode(delta);
+        selection.selected.current.forEach((nId) => {
+          connections.current.updateNode(nodes[nId]);
+        });
+      } else if (mode == 'resize') {
+        let rect = ref.current.getBoundingClientRect();
+        let scale = rect.width/ref.current.offsetWidth;
+        let nRef = nodeRefs.current[nodeId];
+        nRef.style.maxWidth = `${nRef.offsetWidth + delta.dx/scale}px`;
+        // nRef.style.minHeight = `${nRef.offsetHeight + delta.dy/scale}px`;
+      }
+    },
+    onDragStart({nodeId}, ev) {
+      if (!selection.includes(nodeId)) {
+        if (ev.shiftKey) {
+          selection.append(nodeId);
+        } else {
+          selection.replace(nodeId);
+        }
+      }
+    },
+    onClick(state, ev) {
+      // If shift key is down, we're panning
+      if (state === null) {
+        if (!ev.shiftKey) selection.reset();
+        return
+      }
+      let {nodeId} = state;
+
+      // TODO feels hacky
+      if (ev.shiftKey) {
+        // Toggle from group selection
+        selection.toggle(nodeId, ev.shiftKey);
+      } else {
+        // Set as only selection
+        selection.replace(nodeId);
+      }
+    },
+    onDragEnd() {
+      // Update layout here instead of onDrag, which is too slow
+      setLayout((layout) => {
+        let changes = Object.entries(nodeRefs.current).reduce((acc, [nId, ref]) => {
+          let {x, y} = getTranslate(ref);
+          (acc as any)[nId] = {$set: {
+            x, y
+          }};
+          return acc;
+        }, {} as Spec<Layout>);
+        return update(layout, changes);
+      });
+    }
+  });
+
+  // Move node *without* updating the layout
+  const moveNode = React.useCallback(({dx, dy}: {dx: number, dy: number}) => {
+    let rect = ref.current.getBoundingClientRect();
+    let scale = rect.width/ref.current.offsetWidth;
+
+    selection.selected.current.forEach((nId) => {
+      let {x, y} = getTranslate(nodeRefs.current[nId]);
+      nodeRefs.current[nId].style.translate = `${x+dx/scale}px ${y+dy/scale}px`;
+    });
+  }, [selection.selected]);
 
   return <div>
     <div id="controls">
@@ -184,71 +268,82 @@ function Graph() {
       <button onClick={computeGraph}>Compute</button>
     </div>
     <DraggableView id="stage"
-      onContextMenu={onContextMenu}>
-      {menuOpen && <ContextMenu {...menuProps} />}
+      onContextMenu={ctxMenu.onContextMenu}
+      onDoubleClick={() => selection.reset()}>
+      {ctxMenu.open && <ContextMenu {...ctxMenu.props} />}
       <Connections onDelete={onDeleteConnection} ref={connections} />
-      <div id="nodes" ref={ref}>
-        {Object.entries(nodes).map(([id, n]) => <Node
-          key={n.id} node={n}
-          position={layout[n.id]}
-          onMove={(pos) => {
-            setLayout((layout) => {
-              return update(layout, {
-                [n.id]: {$set: pos}
-              });
-            });
-          }}
-          expired={expired}
-          updateConnections={connections.current.updateNode}
-          startConnecting={(portId) => {
-            connections.current.startConnecting([id, portId]);
-          }}
-          makeConnection={(toPortId) => {
-            if (connections.current.connecting !== null) {
-              let toId = n.id;
-              let [fromId, fromPortId] = connections.current.connecting;
-              // Check that port types align
-              let input = n.inputs[toPortId];
-              if (input.type == nodes[fromId].outputs[fromPortId].type) {
-                // Delete previous connection, if any
-                if (!input.multi && input.connections.length > 0) {
-                  for (const con of input.connections) {
-                    connections.current.deleteLine(con, [toId, toPortId]);
-                  }
-                }
-                let exists = connections.current.updateLine([fromId, fromPortId], [toId, toPortId]);
-                if (!exists) {
-                  setNodes((nodes) => {
-                    return update(nodes, {
-                      [fromId]: {
-                        outputs: {
-                          [fromPortId]: {
-                            connections: {$push: [[toId, toPortId]]}
-                          }
-                        }
-                      },
-                      [toId]: {
-                        inputs: {
-                          [toPortId]: {
-                            connections: {$push: [[fromId, fromPortId]]}
-                          }
+      <div id="nodes" ref={ref} style={dragStyle}>
+        {Object.entries(nodes).map(([id, n]) =>
+          <div className="node-wrapper"
+            key={n.id}
+            data-id={n.id}
+            ref={(el) => nodeRefs.current[n.id] = el}
+            style={{
+              translate: `${layout[n.id].x}px ${layout[n.id].y}px`,
+              width: `${layout[n.id].w}px`,
+              height: `${layout[n.id].h}px`,
+            }}
+            onMouseDown={(ev) => {
+              ev.preventDefault();
+              dragMouseDown(ev);
+              return false;
+            }}>
+              <Node
+                node={n}
+                expired={expired}
+                className={selection.includes(n.id) ? 'selected' : ''}
+                updateConnections={connections.current.updateNode}
+                startConnecting={(portId) => {
+                  connections.current.startConnecting([id, portId]);
+                }}
+                makeConnection={(toPortId) => {
+                  if (connections.current.connecting !== null) {
+                    let toId = n.id;
+                    let [fromId, fromPortId] = connections.current.connecting;
+                    // Check that port types align
+                    let input = n.inputs[toPortId];
+                    if (input.type == nodes[fromId].outputs[fromPortId].type) {
+                      // Delete previous connection, if any
+                      if (!input.multi && input.connections.length > 0) {
+                        for (const con of input.connections) {
+                          connections.current.deleteLine(con, [toId, toPortId]);
                         }
                       }
+                      let exists = connections.current.updateLine([fromId, fromPortId], [toId, toPortId]);
+                      if (!exists) {
+                        setNodes((nodes) => {
+                          return update(nodes, {
+                            [fromId]: {
+                              outputs: {
+                                [fromPortId]: {
+                                  connections: {$push: [[toId, toPortId]]}
+                                }
+                              }
+                            },
+                            [toId]: {
+                              inputs: {
+                                [toPortId]: {
+                                  connections: {$push: [[fromId, fromPortId]]}
+                                }
+                              }
+                            }
+                          });
+                        });
+                      }
+                      connections.current.stopConnecting();
+                    }
+                  }
+                }}
+                onChange={(changes) => {
+                  setNodes((nodes) => {
+                    return update(nodes, {
+                      [n.id]: changes
                     });
                   });
-                }
-                connections.current.stopConnecting();
-              }
-            }
-          }}
-          onChange={(changes) => {
-            setNodes((nodes) => {
-              return update(nodes, {
-                [n.id]: changes
-              });
-            });
-          }}
-          />)}
+                }}
+                />
+          {nodeTypes[n.type].resizable && <div className="node-resize-handle"></div>}
+        </div>)}
       </div>
     </DraggableView>
   </div>

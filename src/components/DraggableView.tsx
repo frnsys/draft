@@ -3,43 +3,30 @@ import React from 'react';
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 2.0;
 
-interface Props {
-  id?: string,
-  className?: string,
-  onMouseDown?: (ev: React.MouseEvent) => void,
-  onContextMenu?: (ev: React.MouseEvent) => void,
-  onDragEnd?: (offset: {
-    x: number, y: number,
-    top: number, left: number}) => void,
+interface Props extends React.HTMLAttributes<HTMLDivElement> {
   children: JSX.Element | JSX.Element[],
 }
 
 // Drag to pan and optional zooming
-function DraggableView({onDragEnd, ...props}: Props) {
+function DraggableView({...props}: Props) {
   const ref = React.useRef<HTMLDivElement>();
 
   const [isDragging, setIsDragging] = React.useState(false);
   const zoom = React.useRef(1);
   const position = React.useRef({ top: 0, left: 0, x: 0, y: 0 });
 
-  const onMouseDown = (ev: React.MouseEvent) => {
+  const onMouseDown = (ev: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     // Only direct clicks
     if (ev.target !== ref.current.parentElement) return;
 
-    // Pass event
-    if (props.onMouseDown) props.onMouseDown(ev);
-
-    // Only respond to left-click
-    if (ev.button !== 0) return;
+    // Only respond to left-click + shift
+    if (ev.button !== 0 || !ev.shiftKey) return;
 
     position.current.x = ev.clientX;
     position.current.y = ev.clientY;
     setIsDragging(true);
   }
   const onMouseUp = () => {
-    if (onDragEnd) {
-      onDragEnd(position.current);
-    }
     setIsDragging(false);
   }
   const onMouseMove = (ev: React.MouseEvent) => {
@@ -56,14 +43,27 @@ function DraggableView({onDragEnd, ...props}: Props) {
 
   const onWheel = (ev: React.WheelEvent) => {
     let z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom.current - ev.deltaY/800));
-    ref.current.style.scale = z.toString();
 
-    // TODO zoom to point
-    // let scalechange = z - zoom.current;
-    // let pos = position.current;
-    // pos.left -= ev.clientX * scalechange;
-    // pos.top -= ev.clientY * scalechange;
-    // ref.current.style.translate = `${pos.left}px ${pos.top}px`;
+    // TODO a more concise way of doing this
+    // Can't use pos.left or pos.top here b/c
+    // it doesn't take into account the offsets due to the zoom
+    let rect = ref.current.getBoundingClientRect();
+    let pt = {
+      x: (ev.clientX - rect.x)/zoom.current,
+      y: (ev.clientY - rect.y)/zoom.current,
+    }
+
+    ref.current.style.scale = z.toString();
+    rect = ref.current.getBoundingClientRect();
+    let newPt = {
+      x: (ev.clientX - rect.x)/z,
+      y: (ev.clientY - rect.y)/z,
+    }
+
+    let pos = position.current;
+    pos.left += (newPt.x - pt.x)*z;
+    pos.top += (newPt.y - pt.y)*z;
+    ref.current.style.translate = `${pos.left}px ${pos.top}px`;
 
     zoom.current = z;
   }
