@@ -69,7 +69,7 @@ export function useDraggable<T>({
   React.useEffect(() => {
     document.addEventListener('mouseup', onMouseUp);
     return () => document.removeEventListener('mouseup', onMouseUp);
-  }, []);
+  }, [onClick, onDragEnd]);
 
   return {style, onMouseDown};
 }

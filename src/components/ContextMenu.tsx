@@ -64,13 +64,16 @@ export function useContextMenu(
 
   const onContextMenu = React.useCallback((ev: React.MouseEvent) => {
     ev.preventDefault();
-    setPosition({ x: ev.clientX, y: ev.clientY });
-    setOpen(true);
-    setProps(switchFn(
+    let p = switchFn(
       ev.target as HTMLElement,
-      ev.currentTarget as HTMLElement));
+      ev.currentTarget as HTMLElement);
+    if (p) {
+      setPosition({ x: ev.clientX, y: ev.clientY });
+      setOpen(true);
+      setProps(p);
+    }
     return false;
-  }, []);
+  }, [switchFn]);
   const onClose = React.useCallback(() => setOpen(false), []);
 
   return {
@@ -79,10 +82,10 @@ export function useContextMenu(
       position,
       onClose,
       options: props.options,
-      onSelect: (optionId: string) => {
+      onSelect: React.useCallback((optionId: string) => {
         props.onSelect(optionId, position);
         setOpen(false);
-      },
+      }, [props]),
     },
     onContextMenu
   }

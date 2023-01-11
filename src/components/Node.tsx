@@ -1,42 +1,42 @@
 import _ from 'lodash';
 import React from 'react';
-import { loadFile } from '@/util';
+import Control from './Control';
 import { Spec } from 'immutability-helper';
-import { EditText } from 'react-edit-text';
+import { EditText, EditTextarea } from 'react-edit-text';
 import { nodeTypes } from '@/engine/node';
-import { Node as N, Control as C, Port as P } from '@/engine/types';
+import { PortControl, Control as C, Node as N, Port as P, Value } from '@/engine/types';
 
-function Control({control, onChange}: {
-  control: C,
-  onChange: (val: any, ev: React.ChangeEvent<HTMLInputElement>) => void}) {
-  if (control.type === 'edit-text') {
-    return <EditText
-      defaultValue={control.value}
-      onSave={(ev) => onChange(ev.value, null)} />
+function fmtValue(value: Value|Value[]) {
+  if (_.isArray(value)) {
+    if (value.length > 1) {
+      return `[${value[0]},...]`;
+    } else {
+      return `[${value[0]}]`;
+    }
   } else {
-    return <input
-      type={control.type as React.HTMLInputTypeAttribute}
-      value={control.value}
-      onChange={(ev) => onChange(ev.target.value, ev)} />
+    return value;
   }
 }
 
-function Port({id, port, onChange, onClick, type, expired}: {
+function Port({id, port, control, onChange, onClick, type, expired}: {
   id: string,
   port: P,
   type: 'input'|'output',
   expired: boolean,
-  onChange: (val: any) => void,
+  control: PortControl,
+  onChange: (value: PortControl['value']) => void,
   onClick: () => void}) {
   return port.disabled ? null : <div id={id}
     className={`port port--${port.type}`}>
     <div className="port-pip" onClick={onClick}></div>
     <label>{port.label}</label>
-    {(_.isEmpty(port.connections) || type == 'output') && port.control ?
-      <Control control={port.control} onChange={onChange} /> :
+    {(_.isEmpty(port.connections) || type == 'output') && control ?
+      <Control control={control}
+        value={port.value as typeof control['value']}
+        onChange={onChange} /> :
         (type == 'output' && port.value !== undefined ?
-          <span>{port.value}</span>
-          : <span className={expired ? 'expired' : ''}>{port.lastValue}</span>)}
+          <span className="port-value">{port.value}</span>
+          : <span className={`port-value ${expired ? 'expired' : ''}`}>{fmtValue(port.lastValue)}</span>)}
   </div>
 }
 
@@ -69,9 +69,18 @@ function Node({
     }
   }, [node]);
 
+  let nodeType = nodeTypes[node.type];
+  let style = {};
+  if (_.isFunction(nodeType.style)) {
+    style = nodeType.style(node);
+  } else if (_.isObject(nodeType.style)) {
+    style = nodeType.style;
+  }
+
   return <div
     data-id={node.id}
     id={`n-${node.id}`}
+    style={style}
     className={`node node-${node.type} ${className}`}>
     <div className="node-header">
       <div className="node-label">
@@ -81,53 +90,63 @@ function Node({
       </div>
       <div className="node-type">{node.type}</div>
     </div>
+    {nodeType.render && nodeType.render(node)}
     {!_.isEmpty(node.controls) && <div className="node-controls">
       {Object.entries(node.controls).map(([id, c]) => <Control
         key={id}
-        control={c}
-        onChange={(val, ev) => {
-          onChange({controls: {[id]: {value: {$set: val}}}});
-
-          // TODO definitely better way to do this
-          if (c.type == 'file') {
-            loadFile(ev.target, (text) => {
-              // This is ok b/c we check that the control type is 'file'
-              onChange({controls: {[id]: {data: {$set: text}}}} as any);
-            });
-          }
-        }}/>)}
+        value={c}
+        control={nodeType.controls[id]}
+        onChange={(value) => {
+          onChange({controls: {[id]: {$set: value}}});
+        }} />)}
     </div>}
     {!_.isEmpty(node.inputs) && <div className="node-inputs ports">
-      {Object.entries(node.inputs).map(([id, p]) =>
-        <Port key={id}
+      {Object.entries(node.inputs).map(([id, p]) => {
+        let pType = nodeType.inputs[id];
+        return <Port key={id}
           port={p}
           type="input"
+          control={pType.control}
           id={`n-${node.id}-i-${id}`}
           expired={expired}
-          onChange={(val) => {
-            onChange({inputs: {[id]: {
-              control: {value: {$set: val}}
-            }}});
+          onChange={(value) => {
+            onChange({inputs: {[id]: {value: {$set: value}}}});
           }}
           onClick={() => {
             makeConnection(id);
-          }}/>)}
+          }}/>
+      })}
     </div>}
     {!_.isEmpty(node.outputs) && <div className="node-outputs ports">
-      {Object.entries(node.outputs).map(([id, p]) =>
-        <Port key={id}
+      {Object.entries(node.outputs).map(([id, p]) => {
+        let pType = nodeType.outputs[id];
+        return <Port key={id}
           port={p}
           type="output"
+          control={pType.control}
           id={`n-${node.id}-o-${id}`}
           expired={expired}
-          onChange={(val) => {
-            onChange({outputs: {[id]: {
-              control: {value: {$set: val}}
-            }}});
+          onChange={(value) => {
+            onChange({outputs: {[id]: {value: {$set: value}}}});
           }} onClick={() => {
             startConnecting(id);
-          }}/>)}
+          }}/>
+      })}
     </div>}
+    {!_.isNil(node.comments) && <div className="node-comments">
+      <EditTextarea
+        defaultValue={node.comments}
+        placeholder="Comments"
+        rows={'auto' as any}
+        onSave={(ev) => {
+          let text = ev.value;
+          if (text.length === 0) {
+            onChange({comments: {$set: null}});
+          } else {
+            onChange({comments: {$set: text}});
+          }
+        }} />
+      </div>}
   </div>
 }
 

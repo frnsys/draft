@@ -26,3 +26,13 @@ export function loadFile(input: HTMLInputElement, cb: (text: string | ArrayBuffe
     reader.readAsText(file);
   }
 }
+
+// Download string as a file for the user
+// <https://stackoverflow.com/a/34156339>
+export function download(content: string, fileName: string, contentType: string) {
+  let a = document.createElement('a');
+  let file = new Blob([content], {type: contentType});
+  a.href = URL.createObjectURL(file);
+  a.download = fileName;
+  a.click();
+}

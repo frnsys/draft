@@ -58,7 +58,8 @@ function Connections(
   const newLine = React.useRef(null);
 
   const getPortPosition = ([nId, pId]: PortAddress, type: 'i'|'o') => {
-    let port = document.querySelector(`#n-${nId}-${type}-${pId} .port-pip`);
+    let sel = `#n-${nId}-${type}-${pId} .port-pip`;
+    let port = document.querySelector(sel);
     const rect = port.getBoundingClientRect();
     let pos = adjustPosition({
       x: rect.x + rect.width/2,

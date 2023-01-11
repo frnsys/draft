@@ -1,9 +1,12 @@
-export type Value = number|string;
+import React from 'react';
+
+export type Value = number|string|boolean;
 export type Results = Record<string, Value>;
+export type ControlData = Record<string, Control['value']>;
 export type NodeData = {
   inputs: Record<string, Value|Value[]>,
   outputs: Results,
-  controls: Results,
+  controls: ControlData,
 }
 
 export type Graph = Record<string, Node>;
@@ -15,10 +18,12 @@ export interface PortType {
   type: string,
   label: string,
   multi?: boolean,
-  control?: Control,
+  control?: PortControl,
 }
 
-export interface Port extends PortType {
+export interface Port {
+  type: string,
+  label: string,
   disabled?: boolean,
   connections: PortAddress[],
 
@@ -39,6 +44,8 @@ export interface NodeType {
   controls?: Record<string, Control>,
   compute?: (nodeData: NodeData) => Results,
   onChange?: (node: Node) => Node,
+  style?: React.CSSProperties|((node: Node) => React.CSSProperties),
+  render?: (node: Node) => JSX.Element
 }
 
 export interface Node {
@@ -47,7 +54,9 @@ export interface Node {
   label: string,
   inputs: Record<string, Port>,
   outputs: Record<string, Port>,
-  controls: Record<string, Control>,
+  controls: ControlData,
+  comments: string|null,
+  // state: Record<string, Value>,
 }
 
 export type RangeControl = {
@@ -72,8 +81,22 @@ export type EditTextControl = {
 }
 export type FileUploadControl = {
   type: 'file',
-  value: string,
-  data?: string,
+  value?: {
+    file: string,
+    data: string,
+  },
 }
+export type SelectControl = {
+  type: 'select',
+  value: string,
+  options: {
+    label: string,
+    value: string,
+  }[],
+}
+
 export type Control =
-  RangeControl|NumberControl|TextControl|EditTextControl|FileUploadControl;
+  RangeControl|NumberControl|TextControl|EditTextControl|FileUploadControl|SelectControl;
+
+export type PortControl =
+  RangeControl|NumberControl|SelectControl;

@@ -15,19 +15,24 @@ function hasCycles(graph: Graph) {
 
 // Check that node inputs have either a control or a connection
 function nodeSatisfied(node: Node) {
-  return Object.values(node.inputs).every((inp) => {
-    return inp.connections.length > 0 || inp.control;
+  let nType = nodeTypes[node.type];
+  return Object.entries(node.inputs).every(([pId, inp]) => {
+    let pType = nType.inputs[pId];
+    return inp.connections.length > 0 || pType.control;
   });
 }
 
 // Check that all nodes have all inputs satisfied
 function nodeReady(node: Node, computed: Record<string, Results>) {
-  return Object.values(node.inputs).every((inp) => {
+  let nType = nodeTypes[node.type];
+  return Object.entries(node.inputs).every(([pId, inp]) => {
+    let pType = nType.inputs[pId];
+
     // Must either have a connection or a control
     // If a connection, check that we have data for it
     if (inp.connections.length > 0) {
       return inp.connections.every(([nId, pId]) => nId in computed && computed[nId][pId] !== undefined);
-    } else if (inp.control) {
+    } else if (pType.control) {
       return true;
     } else {
       return false;
@@ -42,25 +47,26 @@ export function compute(graph: Record<string, Node>) {
     throw new Error('Graph is invalid');
   }
 
-  const fringe: Node[] = [];
+  const fringe: string[] = [];
 
   // Find the root nodes (any orphans)
   Object.values(graph).forEach((n) => {
     // No parents
     if (Object.values(n.inputs).every((inp) => inp.connections.length === 0)) {
-      fringe.push(n);
+      fringe.push(n.id);
     }
   });
 
   // Node output results
   const results: Record<string, Results> = {};
   while (fringe.length > 0) {
-    let n = fringe.pop();
+    let nId = fringe.shift();
+    let n = graph[nId];
 
     // If node inputs aren't ready, push to compute later
     // TODO there is probably a more efficient way to do this by tracking dependencies?
     if (!nodeReady(n, results)) {
-      fringe.push(n);
+      fringe.push(n.id);
       continue;
     }
 
@@ -68,12 +74,12 @@ export function compute(graph: Record<string, Node>) {
     results[n.id] = outputs;
     Object.values(n.outputs).forEach((out) => {
       for (const [nId, _] of out.connections) {
-        fringe.push(graph[nId]);
+        if (!fringe.includes(nId)) {
+          fringe.push(nId);
+        }
       }
     });
   }
-
-  console.log(results);
 
   return graph;
 }
@@ -83,42 +89,43 @@ export function graphHash(graph: Record<string, Node>) {
 }
 
 function processNode(node: Node, computed: Record<string, Results>) {
+  let nType = nodeTypes[node.type];
+
   // Get all input and control values,
   // and prepare/compute outputs
   let inputs: Record<string, Value|Value[]> = {};
   Object.entries(node.inputs).forEach(([id, inp]) => {
+    let pType = nType.inputs[id];
     if (inp.connections.length > 0) {
-      if (inp.multi) {
+      if (pType.multi) {
         inputs[id] = inp.connections.map(([nId, pId]) => computed[nId][pId]);
       } else {
         let [nId, pId] = inp.connections[0];
         inputs[id] = computed[nId][pId];
       }
-    } else if (inp.control) {
-      inputs[id] = inp.control.value;
+    } else if (pType.control) {
+      inputs[id] = inp.value;
     } else {
       inputs[id] = undefined;
     }
     inp.lastValue = inputs[id];
   });
 
-  let controls: Results = {};
-  Object.entries(node.controls).forEach(([id, ctrl]) => {
-    controls[id] = ctrl.value;
-  });
+  let controls = node.controls;
 
   let outputs: Results = {};
   Object.entries(node.outputs).forEach(([id, out]) => {
-    if (out.control) {
-      outputs[id] = out.control.value;
-    } else if (out.value !== undefined) {
-      outputs[id] = out.value;
-    } else {
-      outputs[id] = null;
-    }
+    outputs[id] = out.value;
+    // let pType = nType.inputs[id];
+    // if (pType.control) {
+    //   outputs[id] = out.control.value;
+    // } else if (out.value !== undefined) {
+    //   outputs[id] = out.value;
+    // } else {
+    //   outputs[id] = null;
+    // }
   });
 
-  let nType = nodeTypes[node.type];
   if (nType.compute) {
     outputs = nType.compute({inputs, controls, outputs});
   }

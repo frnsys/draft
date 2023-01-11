@@ -19,8 +19,8 @@ function DraggableView({...props}: Props) {
     // Only direct clicks
     if (ev.target !== ref.current.parentElement) return;
 
-    // Only respond to left-click + shift
-    if (ev.button !== 0 || !ev.shiftKey) return;
+    // Only respond to left-click
+    if (ev.button !== 0) return;
 
     position.current.x = ev.clientX;
     position.current.y = ev.clientY;

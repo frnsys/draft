@@ -51,14 +51,45 @@ html, body {
   border-color: #ffe43b;
   min-width: 120px;
 }
-.node-comment .node-header {
+.node-comment .node-header,
+.node-arithmetic .node-header {
   display: none;
+}
+.node-arithmetic {
+  padding: 0 5px;
+}
+.node-arithmetic .port label,
+.node-arithmetic .port-value {
+  display: none;
+}
+.node-arithmetic .ports {
+  position: absolute;
+  top: 50%;
+  transform: translate(0, -50%);
+  margin-top: 0;
+}
+.node-arithmetic .node-outputs.ports {
+  right: 7px;
 }
 .node-display {
   background: #354056;
 }
 .node-display .port--number {
   font-size: 1.2em;
+}
+
+.node-comments {
+  margin-top: 0.5em;
+  color: #aaa;
+}
+.node-comments textarea {
+  width: 100%;
+  font-family: sans-serif;
+  font-size: 0.9em;
+  min-height: 80px;
+}
+.node-comments > div {
+  width: min-content;
 }
 
 
@@ -97,6 +128,7 @@ html, body {
   position: relative;
   display: flex;
   align-items: center;
+  min-height: 10px;
 }
 .port-pip {
   width: 8px;
@@ -117,6 +149,9 @@ html, body {
 }
 .port .expired {
   opacity: 0.3;
+}
+.port .port-value {
+  color: #fffbd4;
 }
 .node-outputs .port {
   flex-direction: row-reverse;
@@ -139,6 +174,10 @@ html, body {
 }
 .node-controls input[type=text] {
   min-width: 100%;
+}
+.node-controls select {
+  display: block;
+  margin: 0.25em auto;
 }
 .node-resize-handle {
   position: absolute;
@@ -186,6 +225,20 @@ button {
   background: #111;
 }
 button:hover {
+  border-color: #387fe9;
+}
+.control-file {
+  text-align: center;
+}
+.control-file span {
+  padding: 0.25em;
+  border: 1px solid #fff;
+  margin: 0.25em 0;
+  cursor: pointer;
+  border-radius: 2px;
+  display: inline-block;
+}
+.control-file span:hover {
   border-color: #387fe9;
 }
 
@@ -243,4 +296,10 @@ button:hover {
 .status-message.error {
   color: #fff;
   background: linear-gradient(90deg, rgba(230,36,36,1) 0%, rgba(195,8,8,1) 100%);
+}
+
+.recharts-default-tooltip {
+  background-color: #222 !important;
+  border: 1px solid rgb(95 95 95) !important;
+  border-radius: 3px;
 }

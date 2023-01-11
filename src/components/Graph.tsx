@@ -3,7 +3,7 @@ import React from 'react';
 import Node from './Node';
 import { nanoid } from 'nanoid';
 import { getStatus }  from './Status';
-import { adjustPosition, getTranslate } from '@/util';
+import { adjustPosition, getTranslate, download } from '@/util';
 import DraggableView from './DraggableView';
 import Connections, { ConnectionsRef } from './Connections';
 import ContextMenu, { useContextMenu } from './ContextMenu';
@@ -12,6 +12,8 @@ import { compute, graphHash } from '@/engine/graph';
 import { Node as N, PortAddress } from '@/engine/types';
 import update, { Spec } from 'immutability-helper';
 import { useDraggable, useKeyBindings, useSelection } from './hooks';
+
+localStorage.removeItem('graph');
 
 const addNodeOptions = Object.entries(nodeTypes).map(([id, n]) => ({
   id,
@@ -41,8 +43,16 @@ function Graph() {
     if (nodeEl) {
       let nodeId = nodeEl.dataset.id;
       let node = nodes[nodeId];
+      let opts = [...editNodeOptions];
+      if (node.comments == null) {
+        opts.push({
+          id: 'comment',
+          label: 'Comment',
+          desc: 'Add a comment.',
+        });
+      }
       return {
-        options: editNodeOptions,
+        options: opts,
         onSelect: (optionId: string) => editNode(node, optionId)
       }
     } else if (target.id == 'stage') {
@@ -74,7 +84,18 @@ function Graph() {
   const editNode = (node: N, op: string) => {
     switch (op) {
       case 'delete':
-        deleteNode(node);
+        if (confirm('Are you sure you want to delete this node?')) {
+          deleteNode(node);
+        }
+        break;
+      case 'comment':
+        setNodes((nodes) => {
+          return update(nodes, {
+            [node.id]: {
+              comments: {$set: ''}
+            }
+          });
+        });
         break;
     }
   }
@@ -93,6 +114,18 @@ function Graph() {
       return update(layout, {$unset: [node.id]});
     });
   }
+
+  React.useEffect(() => {
+    const toDelete: string[] = [];
+    Object.keys(nodeRefs.current).forEach((nId) => {
+      if (!(nId in nodes)) {
+        toDelete.push(nId);
+      }
+    });
+    toDelete.forEach((nId) => {
+      delete nodeRefs.current[nId];
+    });
+  }, [nodes]);
 
   const connections = React.useRef<ConnectionsRef>(null);
   const onDeleteConnection = (fromAddr: PortAddress, toAddr: PortAddress) => {
@@ -137,6 +170,7 @@ function Graph() {
       setNodes(updatedNodes);
     } catch (err) {
       status.addMessage('error', err.toString());
+      console.error(err);
     }
   };
   const expired = hash !== lastComputedHash;
@@ -177,7 +211,7 @@ function Graph() {
       if (el.className == 'port-pip') return false;
 
       // Ignore if input is clicked
-      if (el.tagName == 'INPUT') return false;
+      if (el.tagName == 'INPUT' || el.tagName == 'TEXTAREA' || el.tagName == 'SELECT') return false;
 
       return true;
     },
@@ -219,7 +253,7 @@ function Graph() {
         }
       }
     },
-    onClick(state, ev) {
+    onClick: React.useCallback((state, ev) => {
       // If shift key is down, we're panning
       if (state === null) {
         if (!ev.shiftKey) selection.reset();
@@ -235,8 +269,8 @@ function Graph() {
         // Set as only selection
         selection.replace(nodeId);
       }
-    },
-    onDragEnd() {
+    }, [selection]),
+    onDragEnd: React.useCallback(() => {
       // Update layout here instead of onDrag, which is too slow
       setLayout((layout) => {
         let changes = Object.entries(nodeRefs.current).reduce((acc, [nId, ref]) => {
@@ -248,7 +282,7 @@ function Graph() {
         }, {} as Spec<Layout>);
         return update(layout, changes);
       });
-    }
+    }, [nodeRefs])
   });
 
   // Move node *without* updating the layout
@@ -262,8 +296,19 @@ function Graph() {
     });
   }, [selection.selected]);
 
+  const exportGraph = () => {
+    let graph = {
+      id,
+      nodes,
+      layout,
+      lastComputedHash,
+    }
+    download(JSON.stringify(graph), 'graph.json', 'application/json');
+  }
+
   return <div>
     <div id="controls">
+      <button onClick={exportGraph}>Export</button>
       <button onClick={save}>Save</button>
       <button onClick={computeGraph}>Compute</button>
     </div>
@@ -284,9 +329,7 @@ function Graph() {
               height: `${layout[n.id].h}px`,
             }}
             onMouseDown={(ev) => {
-              ev.preventDefault();
               dragMouseDown(ev);
-              return false;
             }}>
               <Node
                 node={n}
@@ -302,9 +345,12 @@ function Graph() {
                     let [fromId, fromPortId] = connections.current.connecting;
                     // Check that port types align
                     let input = n.inputs[toPortId];
-                    if (input.type == nodes[fromId].outputs[fromPortId].type) {
+                    let toPType = nodeTypes[n.type].inputs[toPortId];
+                    let fromNode = nodes[fromId];
+                    let fromPType = nodeTypes[fromNode.type].outputs[fromPortId];
+                    if (toPType.type == fromPType.type) {
                       // Delete previous connection, if any
-                      if (!input.multi && input.connections.length > 0) {
+                      if (!toPType.multi && input.connections.length > 0) {
                         for (const con of input.connections) {
                           connections.current.deleteLine(con, [toId, toPortId]);
                         }
