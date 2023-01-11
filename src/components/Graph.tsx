@@ -341,6 +341,10 @@ function Graph() {
                   if (connections.current.connecting !== null) {
                     let toId = n.id;
                     let [fromId, fromPortId] = connections.current.connecting;
+
+                    // Can't connect to itself
+                    if (fromId == toId) return;
+
                     // Check that port types align
                     let input = n.inputs[toPortId];
                     let toPType = portTypes[input.type];

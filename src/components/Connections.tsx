@@ -1,5 +1,5 @@
 import React from 'react';
-import { adjustPosition } from '@/util';
+import { adjustPosition, Encoder } from '@/util';
 import { line, curveBasis } from 'd3-shape';
 import { Node, PortAddress } from '@/engine/types';
 
@@ -56,10 +56,15 @@ function Connections(
 
   const {current: lines} = React.useRef<Record<string, SVGPathElement>>({});
   const newLine = React.useRef(null);
+  const selPort = React.useRef<HTMLElement>(null);
 
-  const getPortPosition = ([nId, pId]: PortAddress, type: 'i'|'o') => {
+  const getPort = ([nId, pId]: PortAddress, type: 'i'|'o') => {
     let sel = `#n-${nId}-${type}-${pId} .port-pip`;
-    let port = document.querySelector(sel);
+    return document.querySelector(sel) as HTMLElement;
+  }
+
+  const getPortPosition = (addr: PortAddress, type: 'i'|'o') => {
+    let port = getPort(addr, type);
     const rect = port.getBoundingClientRect();
     let pos = adjustPosition({
       x: rect.x + rect.width/2,
@@ -150,15 +155,83 @@ function Connections(
   }, []);
 
   React.useEffect(() => {
+    if (newLine.current) {
+      newLine.current.el.parentElement.remove();
+      newLine.current = null;
+    }
+
+    if (selPort.current) {
+      selPort.current.classList.remove('selected');
+    }
+
+    // Hacky
+    document.querySelectorAll('.target-tip').forEach((el) => {
+      el.remove();
+    });
+
     if (connecting) {
+      // Show currently selected port
+      let port = getPort(connecting, 'o');
+      selPort.current = port as HTMLElement;
+      selPort.current.classList.add('selected');
+
+      // Start the connecting line
       let start = getPortPosition(connecting, 'o');
       newLine.current = {
         start,
         el: createSvg(start, start, stage.current)
       }
-    } else if (newLine.current) {
-      newLine.current.el.remove();
-      newLine.current = null;
+
+      // TODO hacky
+      // Use keys to quick-connect ports.
+      // Only select those with a matching dtype,
+      // and not on the same node itself.
+      const nId = connecting[0];
+      const dtype = port.dataset.dtype;
+      let inputPorts = document.querySelectorAll(
+        `.node:not([data-id="${nId}"]) .node-inputs .port-pip[data-dtype=${dtype}]`);
+
+      const enc = new Encoder(inputPorts.length, 'asdf');
+      const lookup: Record<string, HTMLElement> = {};
+
+      inputPorts.forEach((el, i) => {
+        const rect = el.getBoundingClientRect();
+        let pos = adjustPosition({
+          x: rect.x + rect.width/2,
+          y: rect.y + rect.height/2,
+        }, stage.current);
+        let target = document.createElement('div');
+        target.className = 'target-tip';
+        target.style.translate = `calc(${pos.x}px - 50%) calc(${pos.y}px - 50%)`;
+
+        let code = enc.encode(i);
+        target.innerText = code;
+        lookup[code] = el as HTMLElement;
+        stage.current.appendChild(target);
+      });
+
+      const buffer: string[] = [];
+      let bufferTimeout: NodeJS.Timeout = null;
+      const selectTarget = (ev: KeyboardEvent) => {
+        buffer.push(ev.key);
+
+        if (buffer.length == enc.nChars) {
+          let code = buffer.join('');
+          if (code in lookup) {
+            lookup[code].click();
+          }
+        }
+
+        // Reset the buffer after some time
+        if (bufferTimeout) clearTimeout(bufferTimeout);
+        bufferTimeout = setTimeout(() => {
+          buffer.length = 0;
+        }, 200);
+      }
+      document.addEventListener('keydown', selectTarget);
+      return () => {
+        document.removeEventListener('keydown', selectTarget);
+      }
     }
   }, [connecting]);
 

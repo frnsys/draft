@@ -26,9 +26,10 @@ function Port({id, port, control, onChange, onClick, type, expired}: {
   control: PortControl,
   onChange: (value: PortControl['value']) => void,
   onClick: () => void}) {
+  let pType = portTypes[port.type];
   return port.disabled ? null : <div id={id}
     className={`port port--${port.type}`}>
-    <div className="port-pip" onClick={onClick}></div>
+    <div className="port-pip" data-dtype={pType.dtype} onClick={onClick}></div>
     <label>{port.label}</label>
     {(_.isEmpty(port.connections) || type == 'output') && control ?
       <Control control={control}

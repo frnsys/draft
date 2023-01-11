@@ -36,3 +36,39 @@ export function download(content: string, fileName: string, contentType: string)
   a.download = fileName;
   a.click();
 }
+
+// Encode a numeric value into the provided character set.
+// E.g. if charset='abc', maxValue=27, value=12 this returns 'bba'
+export class Encoder {
+  charset: string;
+  nChars: number;
+  maxValue: number;
+
+  constructor(maxValue: number, charset: string) {
+    this.charset = charset;
+    this.maxValue = maxValue;
+
+    // Ensure we use enough characters to fully
+    // represent the values
+    let nChars = 1;
+    while (maxValue > charset.length**nChars) {
+      nChars++;
+    }
+    this.nChars = nChars;
+  }
+
+  encode(value: number) {
+    if (value >= this.maxValue) {
+      throw Error('Value cannot be greater than maxValue');
+    }
+
+    let chars: string[] = [];
+    for (let i=this.nChars; i--; i>=0) {
+      let dem = this.charset.length ** i;
+      let idx = Math.floor(value/dem)%this.charset.length;
+      chars.push(this.charset[idx]);
+    }
+
+    return chars.join('');
+  }
+}
