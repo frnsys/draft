@@ -14,17 +14,21 @@ export type Graph = Record<string, Node>;
 // Node id, port id
 export type PortAddress = [string, string];
 
+export type PortTypes = Record<string, PortType>;
+
 export interface PortType {
-  type: string,
-  label: string,
+  dtype: string,
   multi?: boolean,
   control?: PortControl,
 }
 
-export interface Port {
-  type: string,
+export interface NodePort {
+  type: keyof PortTypes,
   label: string,
   disabled?: boolean,
+}
+
+export interface Port extends NodePort {
   connections: PortAddress[],
 
   // Holds a fixed value,
@@ -39,8 +43,8 @@ export interface NodeType {
   label: string,
   desc: string,
   resizable?: boolean,
-  inputs?: Record<string, PortType>,
-  outputs?: Record<string, PortType>,
+  inputs?: Record<string, NodePort>,
+  outputs?: Record<string, NodePort>,
   controls?: Record<string, Control>,
   compute?: (nodeData: NodeData) => Results,
   onChange?: (node: Node) => Node,
@@ -70,6 +74,8 @@ export type NumberControl = {
   type: 'number',
   step: number,
   value: number,
+  min?: number,
+  max?: number,
 }
 export type TextControl = {
   type: 'text',

@@ -7,13 +7,11 @@ import { adjustPosition, getTranslate, download } from '@/util';
 import DraggableView from './DraggableView';
 import Connections, { ConnectionsRef } from './Connections';
 import ContextMenu, { useContextMenu } from './ContextMenu';
-import { newNode, nodeTypes } from '@/engine/node';
+import { newNode, nodeTypes, portTypes } from '@/engine/node';
 import { compute, graphHash } from '@/engine/graph';
 import { Node as N, PortAddress } from '@/engine/types';
 import update, { Spec } from 'immutability-helper';
 import { useDraggable, useKeyBindings, useSelection } from './hooks';
-
-localStorage.removeItem('graph');
 
 const addNodeOptions = Object.entries(nodeTypes).map(([id, n]) => ({
   id,
@@ -345,10 +343,11 @@ function Graph() {
                     let [fromId, fromPortId] = connections.current.connecting;
                     // Check that port types align
                     let input = n.inputs[toPortId];
-                    let toPType = nodeTypes[n.type].inputs[toPortId];
+                    let toPType = portTypes[input.type];
                     let fromNode = nodes[fromId];
-                    let fromPType = nodeTypes[fromNode.type].outputs[fromPortId];
-                    if (toPType.type == fromPType.type) {
+                    let output = fromNode.outputs[fromPortId];
+                    let fromPType = portTypes[output.type];
+                    if (toPType.dtype == fromPType.dtype) {
                       // Delete previous connection, if any
                       if (!toPType.multi && input.connections.length > 0) {
                         for (const con of input.connections) {

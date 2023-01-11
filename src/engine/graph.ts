@@ -1,5 +1,5 @@
 import { Md5 } from 'ts-md5';
-import { nodeTypes } from './node';
+import { nodeTypes, portTypes } from './node';
 import { Node, Graph, Value, Results } from './types';
 
 // Check that graph has no cycles
@@ -15,18 +15,16 @@ function hasCycles(graph: Graph) {
 
 // Check that node inputs have either a control or a connection
 function nodeSatisfied(node: Node) {
-  let nType = nodeTypes[node.type];
-  return Object.entries(node.inputs).every(([pId, inp]) => {
-    let pType = nType.inputs[pId];
+  return Object.entries(node.inputs).every(([_pId, inp]) => {
+    let pType = portTypes[inp.type];
     return inp.connections.length > 0 || pType.control;
   });
 }
 
 // Check that all nodes have all inputs satisfied
 function nodeReady(node: Node, computed: Record<string, Results>) {
-  let nType = nodeTypes[node.type];
-  return Object.entries(node.inputs).every(([pId, inp]) => {
-    let pType = nType.inputs[pId];
+  return Object.entries(node.inputs).every(([_pId, inp]) => {
+    let pType = portTypes[inp.type];
 
     // Must either have a connection or a control
     // If a connection, check that we have data for it
@@ -95,7 +93,7 @@ function processNode(node: Node, computed: Record<string, Results>) {
   // and prepare/compute outputs
   let inputs: Record<string, Value|Value[]> = {};
   Object.entries(node.inputs).forEach(([id, inp]) => {
-    let pType = nType.inputs[id];
+    let pType = portTypes[inp.type];
     if (inp.connections.length > 0) {
       if (pType.multi) {
         inputs[id] = inp.connections.map(([nId, pId]) => computed[nId][pId]);
@@ -116,7 +114,7 @@ function processNode(node: Node, computed: Record<string, Results>) {
   let outputs: Results = {};
   Object.entries(node.outputs).forEach(([id, out]) => {
     outputs[id] = out.value;
-    // let pType = nType.inputs[id];
+    // let pType = portTypes[out.type];
     // if (pType.control) {
     //   outputs[id] = out.control.value;
     // } else if (out.value !== undefined) {

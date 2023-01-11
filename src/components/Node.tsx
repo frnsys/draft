@@ -3,7 +3,7 @@ import React from 'react';
 import Control from './Control';
 import { Spec } from 'immutability-helper';
 import { EditText, EditTextarea } from 'react-edit-text';
-import { nodeTypes } from '@/engine/node';
+import { nodeTypes, portTypes } from '@/engine/node';
 import { PortControl, Control as C, Node as N, Port as P, Value } from '@/engine/types';
 
 function fmtValue(value: Value|Value[]) {
@@ -102,7 +102,7 @@ function Node({
     </div>}
     {!_.isEmpty(node.inputs) && <div className="node-inputs ports">
       {Object.entries(node.inputs).map(([id, p]) => {
-        let pType = nodeType.inputs[id];
+        let pType = portTypes[p.type];
         return <Port key={id}
           port={p}
           type="input"
@@ -119,7 +119,7 @@ function Node({
     </div>}
     {!_.isEmpty(node.outputs) && <div className="node-outputs ports">
       {Object.entries(node.outputs).map(([id, p]) => {
-        let pType = nodeType.outputs[id];
+        let pType = portTypes[p.type];
         return <Port key={id}
           port={p}
           type="output"

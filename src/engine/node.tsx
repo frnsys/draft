@@ -4,26 +4,40 @@ import { evaluate } from 'mathjs';
 import {
   Node, NodeType, Port, PortType,
   NodeData, FileUploadControl,
-  ControlData
+  PortTypes, ControlData, NodePort,
 } from './types';
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 
 const VAR_REGEX = /{([0-9A-Za-z_]+)}/g;
 
-export const portTypes: Record<string, PortType> = {
+export const portTypes: PortTypes = {
   number: {
-    type: 'number',
-    label: 'Number',
+    dtype: 'number',
+  },
+  multiNumber: {
+    dtype: 'number',
+    multi: true,
+  },
+  boolean: {
+    dtype: 'boolean',
   },
   numberInput: {
-    type: 'number',
-    label: 'Number',
+    dtype: 'number',
     control: {
       type: 'number',
       value: 0,
       step: 1,
     }
+  }
+}
+
+function defPort(type: keyof typeof portTypes, config: Partial<Exclude<NodePort, 'type'>>) : NodePort {
+  return {
+    label: type,
+    disabled: false,
+    ...config,
+    type,
   }
 }
 
@@ -43,25 +57,14 @@ export const nodeTypes: Record<string, NodeType> = {
     label: 'Number',
     desc: 'A simple number node.',
     outputs: {
-      number: {
-        type: 'number',
-        label: 'Number',
-        control: {
-          type: 'number',
-          value: 0,
-          step: 1,
-        }
-      }
+      number: defPort('numberInput', {label: 'Value'}),
     },
   },
   display: {
     label: 'Display',
     desc: 'Displays a number value.',
     inputs: {
-      number: {
-        type: 'number',
-        label: '',
-      }
+      number: defPort('number', {label: ''}),
     },
   },
   flag: {
@@ -69,10 +72,7 @@ export const nodeTypes: Record<string, NodeType> = {
     desc: 'Indicates a boolean value',
     resizable: true,
     inputs: {
-      boolean: {
-        type: 'boolean',
-        label: '',
-      }
+      boolean: defPort('boolean', {label: ''}),
     },
     style: (node) => {
       let color = node.inputs.boolean.lastValue ? '#3fc66d' : '#ff4040';
@@ -82,15 +82,101 @@ export const nodeTypes: Record<string, NodeType> = {
       }
     }
   },
+  gate: {
+    label: 'Gate',
+    desc: 'Return a different value depending on the control value.',
+    controls: {
+      inputs: {
+        type: 'number',
+        value: 2,
+        min: 2,
+        step: 1,
+      }
+    },
+    inputs: {
+      control: defPort('numberInput', {label: 'Input Index'}),
+      0: defPort('numberInput', {label: '0'}),
+      1: defPort('numberInput', {label: '1'}),
+    },
+    outputs: {
+      value: defPort('number', {label: 'Value'})
+    },
+    onChange: (node) => {
+      let n = node.controls.inputs as number;
+      [...Array(n).keys()].forEach((i) => {
+        let id = i.toString();
+        if (!(id in node.inputs)) {
+          node.inputs[id] = {
+            value: 0,
+            type: 'numberInput',
+            label: i.toString(),
+            connections: []
+          }
+        }
+      });
+      return node;
+    },
+    compute: (nodeData: NodeData) => {
+      let idx = nodeData.inputs.control.toString();
+      let value = nodeData.inputs[idx] as number;
+      return {
+        value,
+      };
+    }
+  },
+
+  // TODO
+  // also need a "gate" which is like the inverse of a router;
+  // multiple values in, one value out based on a control value
+  // router: {
+  //   label: 'Router',
+  //   desc: 'Route input value to different outputs',
+  //   // TODO switch on string equals, bool equals, number
+  //   // each output port has a matching bool input port
+  //   controls: {
+  //     ports: {
+  //       type: 'number',
+  //       value: 2,
+  //       min: 2,
+  //       step: 1,
+  //     }
+  //   },
+  //   inputs: {
+  //     value: portTypes.number,
+  //   },
+  //   onChange: (node) => {
+  //     let n = node.controls.ports as number;
+  //     [...Array(n).keys()].forEach((i) => {
+  //       if (_.size(node.outputs) < i) {
+  //         node.outputs[i] = {
+  //           type: 'number',
+  //           label: i.toString(),
+  //           connections: [],
+  //         };
+  //         node.inputs[i] = {
+  //           type: 'boolean',
+  //           label: i.toString(),
+  //           connections: []
+  //         };
+  //       }
+  //     });
+  //     console.log(node);
+  //     return node;
+  //   },
+  //   compute: (nodeData: NodeData) => {
+  //     let results: Record<string, Value> = {};
+  //     let value = nodeData.inputs.value as Value;
+  //     Object.keys(nodeData.outputs).forEach((id) => {
+  //       results[id] = value;
+  //     });
+  //     return results;
+  //   }
+  // },
   chart: {
     label: 'Chart',
     desc: 'Simple chart',
     inputs: {
-      number: {
-        type: 'number',
-        label: 'Values',
-        multi: true,
-      }
+      number: defPort('multiNumber', {label: 'Values'}),
     },
     render(node) {
       // TODO better type handling
@@ -112,7 +198,7 @@ export const nodeTypes: Record<string, NodeType> = {
   arithmetic: {
     label: 'Arithmetic',
     desc: 'Simple arithmetic',
-    controls:  {
+    controls: {
       op: {
         type: 'select',
         options: [{
@@ -132,20 +218,11 @@ export const nodeTypes: Record<string, NodeType> = {
       }
     },
     inputs: {
-      left: {
-        type: 'number',
-        label: 'Left',
-      },
-      right: {
-        type: 'number',
-        label: 'Right',
-      }
+      left: defPort('number', {label: 'Left'}),
+      right: defPort('number', {label: 'Right'}),
     },
     outputs: {
-      result: {
-        type: 'number',
-        label: 'Result'
-      }
+      result: defPort('number', {label: 'Result'})
     },
     compute: (nodeData: NodeData) => {
       // TODO better type handling
@@ -166,7 +243,7 @@ export const nodeTypes: Record<string, NodeType> = {
   comparison: {
     label: 'Comparison',
     desc: 'Compares two numerical values',
-    controls:  {
+    controls: {
       op: {
         type: 'select',
         options: [{
@@ -195,20 +272,11 @@ export const nodeTypes: Record<string, NodeType> = {
       }
     },
     inputs: {
-      left: {
-        type: 'number',
-        label: 'Left',
-      },
-      right: {
-        type: 'number',
-        label: 'Right',
-      }
+      left: defPort('number', {label: 'Left'}),
+      right: defPort('number', {label: 'Right'}),
     },
     outputs: {
-      result: {
-        type: 'boolean',
-        label: 'Result'
-      }
+      result: defPort('boolean', {label: 'Result'})
     },
     compute: (nodeData: NodeData) => {
       // TODO better type handling
@@ -235,7 +303,7 @@ export const nodeTypes: Record<string, NodeType> = {
   reduce: {
     label: 'Reduce',
     desc: 'Reduces numerical inputs',
-    controls:  {
+    controls: {
       op: {
         type: 'select',
         options: [{
@@ -249,17 +317,10 @@ export const nodeTypes: Record<string, NodeType> = {
       }
     },
     inputs: {
-      number: {
-        type: 'number',
-        label: 'Values',
-        multi: true,
-      }
+      number: defPort('multiNumber', {label: 'Values'}),
     },
     outputs: {
-      result: {
-        type: 'number',
-        label: 'Result',
-      }
+      result: defPort('number', {label: 'Result'})
     },
     compute: (nodeData: NodeData) => {
       // TODO better type handling here
@@ -316,10 +377,7 @@ export const nodeTypes: Record<string, NodeType> = {
     label: 'Expression',
     desc: 'Dynamic math expression.',
     outputs: {
-      result: {
-        type: 'number',
-        label: 'Result',
-      }
+      result: defPort('number', {label: 'Result'})
     },
     controls: {
       expression: {
@@ -359,14 +417,16 @@ export const nodeTypes: Record<string, NodeType> = {
   }
 };
 
-function newPorts(portTypes: Record<string, PortType>) : Record<string, Port> {
+function initPorts(pTypes: Record<string, NodePort>) : Record<string, Port> {
   let ports: Record<string, Port> = {};
-  Object.entries(portTypes).forEach(([id, portType]) => {
+  Object.entries(pTypes).forEach(([id, portSpec]) => {
+    // TODO
+    let pType: PortType = portTypes[portSpec.type as keyof typeof portTypes];
     ports[id] = {
       connections: [],
-      type: portType.type,
-      label: portType.label,
-      value: portType.control ? portType.control.value : undefined,
+      type: portSpec.type,
+      label: portSpec.label,
+      value: pType.control ? pType.control.value : undefined,
     }
   });
   return ports;
@@ -382,8 +442,8 @@ export function newNode(typeId: keyof typeof nodeTypes) : Node {
     id: nanoid(),
     type: typeId,
     label: type.label,
-    inputs: newPorts(type.inputs || {}),
-    outputs: newPorts(type.outputs || {}),
+    inputs: initPorts(type.inputs || {}),
+    outputs: initPorts(type.outputs || {}),
     controls: controls,
     comments: null,
   }
