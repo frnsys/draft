@@ -272,8 +272,8 @@ export const nodeTypes: Record<string, NodeType> = {
       }
     },
     inputs: {
-      left: defPort('number', {label: 'Left'}),
-      right: defPort('number', {label: 'Right'}),
+      left: defPort('numberInput', {label: 'Left'}),
+      right: defPort('numberInput', {label: 'Right'}),
     },
     outputs: {
       result: defPort('boolean', {label: 'Result'})

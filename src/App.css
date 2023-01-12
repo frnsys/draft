@@ -79,8 +79,17 @@ html, body {
 }
 
 .node-comments {
-  margin-top: 0.5em;
+  position: absolute;
+  left: 0;
+  right: 0;
   color: #aaa;
+  background: #333;
+  margin: 2px 0 0 0;
+  top: 100%;
+  border-radius: 3px;
+  padding: 3px 5px;
+  border: 1px solid #222;
+  word-break: break-word;
 }
 .node-comments textarea {
   width: 100%;
@@ -88,10 +97,6 @@ html, body {
   font-size: 0.9em;
   min-height: 80px;
 }
-.node-comments > div {
-  width: min-content;
-}
-
 
 #stage {
   width: 100vw;
